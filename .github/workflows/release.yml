@@ -1,0 +1,47 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v1.0"
+        required: true
+        default: "v1.0"
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build zips
+        run: |
+          mkdir -p dist
+          zip -qr "dist/salesops-skills-free-${{ inputs.version }}.zip" README.md LICENSE skills
+          cd skills
+          for s in */; do s="${s%/}"; zip -qr "../dist/$s.zip" "$s"; done
+          cd ..
+          ls -la dist
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          Two free, MIT-licensed Claude skills for sales managers.
+
+          **What's in the box**
+
+          - `sales-report-analyst` — turns a raw sales export (CSV/XLSX) into MBR commentary: attainment, gaps, leaders/laggards, anomalies, trend, three actions. Script: `profile_sales.py`.
+          - `pipeline-reviewer` — reviews a CRM pipeline export: coverage ratio, weighted forecast vs target, stale/slipped/aging deals, concentration risk, per-owner 1:1 questions. Script: `pipeline_hygiene.py`.
+
+          **Install**
+
+          - Claude Code: clone the repo and copy `skills/*` into `~/.claude/skills/` (or `.claude/skills/` in a project).
+          - Claude.ai / Cowork: download `sales-report-analyst.zip` and/or `pipeline-reviewer.zip` below and upload under Settings → Skills.
+
+          Scripts need Python 3.9+ and `pandas` (`pip install pandas openpyxl`).
+
+          The Pro Pack (six more skills: incentive-plan-designer, commission-plan-auditor, territory-planner, quota-setter, field-force-sizing, sales-review-prep) is at https://quotakit.gumroad.com/l/salesops.
+          EOF
+          gh release create "${{ inputs.version }}" dist/* \
+            --title "${{ inputs.version }} — Sales Ops Skills for Claude (free starter)" \
+            --notes-file notes.md --latest
